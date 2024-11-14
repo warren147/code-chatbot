@@ -1,16 +1,15 @@
-// src/components/FileList.js
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import './FileList.css';
-import { ClipLoader } from 'react-spinners'; // Optional: Spinner for loading
-import { toast } from 'react-toastify'; // Optional: Toast notifications
+import { ClipLoader } from 'react-spinners'; 
+import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-const FileList = ({ refresh }) => { // Accept refresh prop
+const FileList = ({ refresh }) => { 
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [deletingId, setDeletingId] = useState(null); // Track which file is being deleted
+  const [deletingId, setDeletingId] = useState(null);
 
   const fetchFiles = async () => {
     setLoading(true);
@@ -34,11 +33,11 @@ const FileList = ({ refresh }) => { // Accept refresh prop
     if (!confirmDelete) return;
 
     try {
-      setDeletingId(fileId); // Indicate which file is being deleted
+      setDeletingId(fileId); 
       await axios.delete(`http://localhost:5001/files/${fileId}`);
       toast.success('File deleted successfully.');
       setDeletingId(null);
-      fetchFiles(); // Refresh the file list
+      fetchFiles();
     } catch (err) {
       console.error('Error deleting file:', err);
       toast.error(err.response && err.response.data && err.response.data.error 
@@ -48,7 +47,7 @@ const FileList = ({ refresh }) => { // Accept refresh prop
     }
   };
 
-  if (loading) return <ClipLoader color="#36d7b7" />; // Optional: Spinner
+  if (loading) return <ClipLoader color="#36d7b7" />; 
   if (error) return (
     <div>
       <p>Error: {error}</p>

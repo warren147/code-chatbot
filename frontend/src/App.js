@@ -1,16 +1,15 @@
-// src/App.js
+
 import React, { useState } from 'react';
 import FileUpload from './components/FileUpload';
 import FileList from './components/FileList';
 import Chat from './components/Chat';
-import { ToastContainer } from 'react-toastify'; // Import ToastContainer
-import 'react-toastify/dist/ReactToastify.css'; // Import Toastify CSS
+import { ToastContainer } from 'react-toastify'; 
+import 'react-toastify/dist/ReactToastify.css'; 
 
 function App() {
   const [refreshFiles, setRefreshFiles] = useState(false);
 
   const handleUploadSuccess = () => {
-    // Toggle refreshFiles state to trigger FileList re-fetch
     setRefreshFiles(prev => !prev);
   };
 

@@ -1,10 +1,10 @@
-// src/components/FileUpload.js
+
 import React, { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import axios from 'axios';
-import './FileUpload.css'; // Create this CSS file for styling
+import './FileUpload.css'; 
 
-const FileUpload = ({ onUploadSuccess }) => { // Accept onUploadSuccess prop
+const FileUpload = ({ onUploadSuccess }) => { 
   const onDrop = useCallback((acceptedFiles) => {
     const formData = new FormData();
     acceptedFiles.forEach(file => {
@@ -18,7 +18,7 @@ const FileUpload = ({ onUploadSuccess }) => { // Accept onUploadSuccess prop
     })
     .then(response => {
       alert('Files uploaded successfully!');
-      if (onUploadSuccess) onUploadSuccess(); // Trigger refresh
+      if (onUploadSuccess) onUploadSuccess(); 
     })
     .catch(error => {
       console.error('Error uploading files:', error);
