@@ -37,7 +37,6 @@ Create a .env file containing:
 PORT=your_port
 OPENAI_API_KEY=your_openai_api_key_here
 PINECONE_API_KEY=your_pinecone_api_key_here
-PINECONE_ENVIRONMENT=your_pinecone_environment_here
 ```
 
 then run:
