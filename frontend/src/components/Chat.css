@@ -1,0 +1,251 @@
+/* src/components/Chat.css */
+
+.chat-container {
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 10px;
+    max-height: 650px;
+    display: flex;
+    flex-direction: column;
+    background-color: #f9f9f9;
+    position: relative; /* For header positioning */
+  }
+  
+  .chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  
+  .chat-header h2 {
+    margin: 0;
+    font-size: 1.5em;
+    color: #333;
+  }
+  
+  .clear-button {
+    padding: 5px 10px;
+    border: none;
+    background-color: #dc3545;
+    color: #fff;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9em;
+  }
+  
+  .clear-button:hover {
+    background-color: #c82333;
+  }
+  
+  .messages-container {
+    flex: 1;
+    overflow-y: auto;
+    margin-bottom: 10px;
+    padding: 5px;
+  }
+  
+  .user-message {
+    text-align: left;
+    margin: 5px 0;
+    padding: 10px;
+    padding-block: 5px;
+    background-color: #dcf8c6;
+    border-radius: 10px;
+    display: block;
+    max-width: auto;
+    margin-left: auto;
+  }
+  
+  .bot-message {
+    text-align: left;
+    margin: 5px 0;
+    padding: 10px;
+    background-color: #fff;
+    border-radius: 10px;
+    display: block;
+    max-width: auto;
+    margin-right: auto;
+  }
+  
+  /* Optional: Add more vertical spacing between messages */
+  .user-message,
+  .bot-message {
+    margin-bottom: 15px;
+  }
+  
+  /* Optional: Differentiate messages with subtle borders */
+  .user-message {
+    border: 1px solid #d4f0c5;
+  }
+  
+  .bot-message {
+    border: 1px solid #f1f1f1;
+  }
+  
+  .input-container {
+    display: flex;
+    border-top: 1px solid #ddd;
+    padding-top: 10px;
+  }
+  
+  .input-field {
+    flex: 1;
+    padding: 10px;
+    border-radius: 5px 0 0 5px;
+    border: 1px solid #ccc;
+    font-size: 16px;
+  }
+  
+  .send-button {
+    padding: 10px 20px;
+    border-radius: 0 5px 5px 0;
+    border: none;
+    background-color: #28a745;
+    color: #fff;
+    cursor: pointer;
+    font-size: 16px;
+  }
+  
+  .send-button:hover {
+    background-color: #218838;
+  }
+  
+  /* Modal Overlay */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+  
+  /* Modal Content */
+  .modal-content {
+    background-color: #fff;
+    padding: 20px 30px;
+    border-radius: 8px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    position: relative;
+  }
+  
+  .modal-content h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #333;
+  }
+  
+  .modal-body {
+    margin-bottom: 20px;
+    color: #555;
+  }
+  
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+  
+  .modal-confirm-button,
+  .modal-cancel-button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9em;
+  }
+  
+  .modal-confirm-button {
+    background-color: #dc3545;
+    color: #fff;
+  }
+  
+  .modal-confirm-button:hover {
+    background-color: #c82333;
+  }
+  
+  .modal-cancel-button {
+    background-color: #6c757d;
+    color: #fff;
+  }
+  
+  .modal-cancel-button:hover {
+    background-color: #5a6268;
+  }
+  
+  /* Responsive Design */
+  
+  @media (max-width: 768px) {
+    .chat-container {
+      height: 60vh; /* Adjust height for smaller screens */
+    }
+  
+    .input-field {
+      font-size: 14px;
+    }
+  
+    .send-button {
+      font-size: 14px;
+      padding: 8px 16px;
+    }
+  
+    .chat-header h2 {
+      font-size: 1.2em;
+    }
+  
+    .clear-button {
+      padding: 4px 8px;
+      font-size: 0.8em;
+    }
+  
+    .modal-content {
+      padding: 15px 20px;
+    }
+  
+    .modal-confirm-button,
+    .modal-cancel-button {
+      padding: 6px 12px;
+      font-size: 0.8em;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .chat-container {
+      height: 50vh;
+    }
+  
+    .input-field {
+      font-size: 12px;
+    }
+  
+    .send-button {
+      font-size: 12px;
+      padding: 6px 12px;
+    }
+  
+    .chat-header h2 {
+      font-size: 1em;
+    }
+  
+    .clear-button {
+      padding: 3px 6px;
+      font-size: 0.7em;
+    }
+  
+    .modal-content {
+      padding: 10px 15px;
+    }
+  
+    .modal-confirm-button,
+    .modal-cancel-button {
+      padding: 5px 10px;
+      font-size: 0.7em;
+    }
+  }

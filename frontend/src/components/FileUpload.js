@@ -2,8 +2,9 @@
 import React, { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import axios from 'axios';
+import './FileUpload.css'; // Create this CSS file for styling
 
-const FileUpload = () => {
+const FileUpload = ({ onUploadSuccess }) => { // Accept onUploadSuccess prop
   const onDrop = useCallback((acceptedFiles) => {
     const formData = new FormData();
     acceptedFiles.forEach(file => {
@@ -17,17 +18,18 @@ const FileUpload = () => {
     })
     .then(response => {
       alert('Files uploaded successfully!');
+      if (onUploadSuccess) onUploadSuccess(); // Trigger refresh
     })
     .catch(error => {
       console.error('Error uploading files:', error);
       alert('Failed to upload files.');
     });
-  }, []);
+  }, [onUploadSuccess]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, multiple: true });
 
   return (
-    <div {...getRootProps()} style={styles.dropzone}>
+    <div {...getRootProps()} className="dropzone">
       <input {...getInputProps()} />
       {
         isDragActive ?
@@ -36,17 +38,6 @@ const FileUpload = () => {
       }
     </div>
   );
-};
-
-const styles = {
-  dropzone: {
-    border: '2px dashed #cccccc',
-    borderRadius: '5px',
-    padding: '20px',
-    textAlign: 'center',
-    cursor: 'pointer',
-    marginBottom: '20px'
-  }
 };
 
 export default FileUpload;

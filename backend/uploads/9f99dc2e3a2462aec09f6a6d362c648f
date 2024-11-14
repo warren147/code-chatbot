@@ -4,14 +4,10 @@ const path = require('path');
 const axios = require('axios');
 const { Pinecone } = require('@pinecone-database/pinecone');
 const { v4: uuidv4 } = require('uuid');
-const dotenv = require('dotenv');
-dotenv.config();
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const PINECONE_API_KEY = process.env.PINECONE_API_KEY;
-
+OPENAI_API_KEY = "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";
 
 const pc = new Pinecone({
-    apiKey: PINECONE_API_KEY
+    apiKey: "59f8869e-72fe-49ac-9dab-9a5038c90af7"
   });
 
 const index = pc.Index('code-embeddings'); 
@@ -31,18 +27,16 @@ async function generateEmbedding(text) {
 
 const processFiles = async (files) => {
     const pc = new Pinecone({
-        apiKey: PINECONE_API_KEY
+        apiKey: "59f8869e-72fe-49ac-9dab-9a5038c90af7"
         });
 
     const index = pc.Index('code-embeddings'); 
-    
 
   for (const file of files) {
     const content = fs.readFileSync(path.join(file.path), 'utf-8');
     const embedding = await generateEmbedding(content);
-    const tempId = uuidv4()
     vector = []
-    vector.push({ id: tempId, values: embedding, metadata: {
+    vector.push({ id: uuidv4(), values: embedding, metadata: {
         fileName: file.originalname,
         content: content
       }})
@@ -56,7 +50,7 @@ const processFiles = async (files) => {
       filesMeta = JSON.parse(data);
     }
     filesMeta.push({
-      id: tempId,
+      id: uuidv4(),
       fileName: file.originalname,
       uploadDate: new Date().toISOString()
     });

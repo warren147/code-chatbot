@@ -1,0 +1,120 @@
+/* src/components/FileList.css */
+
+.file-list-container {
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 15px;
+    margin-bottom: 20px;
+    background-color: #fff;
+  }
+  
+  .file-list-container h2 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    color: #333;
+  }
+  
+  .file-list {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .file-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid #f1f1f1;
+  }
+  
+  .file-item:last-child {
+    border-bottom: none;
+  }
+  
+  .file-info {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .file-name {
+    font-weight: bold;
+    color: #555;
+  }
+  
+  .upload-date {
+    font-size: 0.9em;
+    color: #999;
+  }
+  
+  .delete-button {
+    background: none;
+    border: none;
+    color: #ff4d4f;
+    font-size: 1.2em;
+    cursor: pointer;
+    transition: color 0.3s ease;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .delete-button:hover {
+    color: #ff7875;
+  }
+  
+  .delete-button:disabled {
+    color: #ccc;
+    cursor: not-allowed;
+  }
+  
+  /* Optional: Style the Delete All Button */
+  .delete-all-button {
+    background-color: #ff4d4f;
+    color: #fff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    margin-top: 10px;
+  }
+  
+  .delete-all-button:hover {
+    background-color: #ff7875;
+  }
+  
+  .delete-all-button:disabled {
+    background-color: #ffb3b3;
+    cursor: not-allowed;
+  }
+  
+  /* Responsive Design */
+  
+  @media (max-width: 768px) {
+    .file-item {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  
+    .upload-date {
+      margin-top: 5px;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .file-list-container {
+      padding: 10px;
+    }
+  
+    .file-item {
+      padding: 6px 8px;
+    }
+  
+    .file-name {
+      font-size: 0.95em;
+    }
+  
+    .upload-date {
+      font-size: 0.8em;
+    }
+  }
