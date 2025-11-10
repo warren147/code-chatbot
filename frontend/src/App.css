@@ -1,38 +1,83 @@
-.App {
-  text-align: center;
+.app-root {
+  height: 100%;
+  display: flex;
+  overflow: hidden;
+  background: var(--color-page);
+  color: var(--color-text-primary);
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
+.app-main {
+  flex: 1;
   display: flex;
   flex-direction: column;
+  padding: 32px 40px;
+  gap: 28px;
+  overflow: hidden;
+  min-height: 0;
+  transition: padding var(--transition-base);
+}
+
+.app-topbar {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 18px;
 }
 
-.App-link {
-  color: #61dafb;
+.app-topbar h1 {
+  margin: 0;
+  font-size: 1.4rem;
+  letter-spacing: -0.01em;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
+.app-topbar p {
+  margin: 6px 0 0;
+  font-size: 0.95rem;
+  color: var(--color-text-tertiary);
+}
+
+.topbar__button {
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface-subtle);
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background var(--transition-base), color var(--transition-base), border var(--transition-base);
+}
+
+.topbar__button:hover {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  border-color: rgba(91, 141, 239, 0.4);
+}
+
+.app-chat {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 1080px) {
+  .app-main {
+    padding: 24px;
   }
-  to {
-    transform: rotate(360deg);
+}
+
+@media (max-width: 900px) {
+  .app-root {
+    flex-direction: column;
   }
+
+  .app-main {
+    padding: 20px;
+  }
+}
+
+.app-root--sidebar-collapsed .app-main {
+  padding: 32px 32px 32px 28px;
 }

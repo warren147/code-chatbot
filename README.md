@@ -6,6 +6,8 @@ An application designed to assist developers by providing an interactive chat in
 ## Table of contents
 * [Prerequisites](#prerequisites)
 * [Executing Program](#executing-program)
+* [Key Features](#key-features)
+* [Testing](#testing)
 * [Inspiration](#inspiration)
 * [Future Development](#future-development)
 * [Contact](#contact)
@@ -30,17 +32,70 @@ Ensure you have the following installed on your local machine:
 
 ## Executing Program
 
-Create a .env file containing:
+Create the backend `.env` file with the required credentials and configuration:
 ```
 # backend/.env
 
-PORT=your_port
-OPENAI_API_KEY=your_openai_api_key_here
-PINECONE_API_KEY=your_pinecone_api_key_here
+PORT=5001
+OPENAI_API_KEY=sk-...
+PINECONE_API_KEY=pc-...
+PINECONE_INDEX=code-embeddings
+FRONTEND_ORIGIN=http://localhost:3000
+# Optional overrides
+# DATABASE_FILE=data/app.db
+# MAX_HISTORY_MESSAGES=10
+# MAX_CHUNK_TOKENS=800
+# CHUNK_OVERLAP_TOKENS=200
+# MIN_PINECONE_SCORE=0.75
 ```
 
-then run:
-```docker-compose up -d --build```
+Install dependencies and launch the stack:
+
+```bash
+# backend
+cd backend
+npm install
+
+# frontend
+cd ../frontend
+npm install
+
+# Docker
+cd ..
+docker-compose up -d --build
+```
+
+The React application respects `REACT_APP_API_BASE_URL` (defaults to `http://localhost:5001`) so the frontend can proxy to production instances without code changes.
+
+### Local-only workflow
+
+If you prefer to run outside Docker, start each service in separate terminals:
+
+```bash
+cd backend && npm start    # add a start script or use nodemon
+cd frontend && npm start
+```
+
+The backend persists metadata in `backend/data/app.db` (SQLite). Delete that file if you need a clean slate.
+
+## Key Features
+
+- Deterministic file chunking with overlap, deduplicated via SHA-256 prior to embedding.
+- Asynchronous Pinecone ingestion queue with detailed status tracking (queued → processing → ready/failed).
+- Persistent chat sessions backed by SQLite plus streaming responses over Server-Sent Events.
+- Source citations in every answer referencing filename and line ranges.
+- Toast-driven UX for uploads/deletions, status badges for file processing, and configurable API base URL.
+
+## Testing
+
+Run lightweight smoke tests for hashing/chunking logic:
+
+```bash
+cd backend
+npm test
+```
+
+End-to-end verification still requires valid OpenAI & Pinecone credentials; trigger an upload and `/ask` request once your API keys are provisioned.
 
 
 ## Inspiration

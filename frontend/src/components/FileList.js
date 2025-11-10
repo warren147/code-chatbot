@@ -1,53 +1,90 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-import './FileList.css';
-import { ClipLoader } from 'react-spinners'; 
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ClipLoader } from 'react-spinners';
 import { toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import client from '../api/client';
+import Modal from './Modal';
+import './FileList.css';
 
-const FileList = ({ refresh }) => { 
+const FileList = ({ refresh }) => {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [pendingDeletion, setPendingDeletion] = useState(null);
+  const pollingRef = useRef(null);
 
-  const fetchFiles = async () => {
-    setLoading(true);
+  const fetchFiles = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true);
+    }
     try {
-      const response = await axios.get('http://localhost:5001/files');
-      setFiles(response.data.files);
+      const response = await client.get('/files');
+      setFiles(response.data.files || []);
       setError(null);
     } catch (err) {
       console.error('Error fetching files:', err);
       setError(err.response ? err.response.data.error : 'Network Error');
     }
-    setLoading(false);
-  };
+    if (!silent) {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchFiles();
-  }, [refresh]);
+  }, [fetchFiles, refresh]);
 
-  const handleDelete = async (fileId) => {
-    const confirmDelete = window.confirm('Are you sure you want to delete this file?');
-    if (!confirmDelete) return;
+  useEffect(() => {
+    const asyncStatuses = new Set(['processing', 'queued']);
+    const shouldPoll = files.some(file => asyncStatuses.has((file.status || '').toLowerCase()));
+
+    if (shouldPoll && !pollingRef.current) {
+      pollingRef.current = setInterval(() => {
+        fetchFiles({ silent: true });
+      }, 4000);
+    }
+
+    if (!shouldPoll && pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [files, fetchFiles]);
+
+  const confirmDelete = (file) => {
+    setPendingDeletion(file);
+  };
+
+  const handleDelete = async () => {
+    if (!pendingDeletion) return;
 
     try {
-      setDeletingId(fileId); 
-      await axios.delete(`http://localhost:5001/files/${fileId}`);
+      setDeletingId(pendingDeletion.id);
+      await client.delete(`/files/${pendingDeletion.id}`);
       toast.success('File deleted successfully.');
+      setPendingDeletion(null);
       setDeletingId(null);
       fetchFiles();
     } catch (err) {
       console.error('Error deleting file:', err);
-      toast.error(err.response && err.response.data && err.response.data.error 
-        ? `Error: ${err.response.data.error}`
-        : 'Failed to delete the file.');
+      const errorMessage =
+        err.response && err.response.data && err.response.data.error
+          ? err.response.data.error
+          : 'Failed to delete the file.';
+      toast.error(errorMessage);
       setDeletingId(null);
     }
   };
 
-  if (loading) return <ClipLoader color="#36d7b7" />; 
+  const closeModal = () => setPendingDeletion(null);
+
+  if (loading) return <ClipLoader color="#5b8def" />;
   if (error) return (
     <div>
       <p>Error: {error}</p>
@@ -55,31 +92,72 @@ const FileList = ({ refresh }) => {
     </div>
   );
 
+  const fileCount = files.length;
+
   return (
     <div className="file-list-container">
-      <h2>Uploaded Files</h2>
-      {files.length === 0 ? (
-        <p>No files uploaded yet.</p>
+      <div className="file-list-header">
+        <h2>Knowledge queue</h2>
+        <span className="file-count">{fileCount} file{fileCount === 1 ? '' : 's'}</span>
+      </div>
+      {fileCount === 0 ? (
+        <div className="file-empty-state">
+          Drop files to start ingesting your knowledge base. We'll show processing status here.
+        </div>
       ) : (
         <ul className="file-list">
-          {files.map(file => (
-            <li key={file.id} className="file-item">
-              <div className="file-info">
-                <span className="file-name">{file.fileName}</span>
-                <span className="upload-date">{new Date(file.uploadDate).toLocaleString()}</span>
-              </div>
-              <button 
-                className="delete-button" 
-                onClick={() => handleDelete(file.id)}
-                disabled={deletingId === file.id}
-                title="Delete File"
-              >
-                {deletingId === file.id ? 'Deleting...' : '✖'}
-              </button>
-            </li>
-          ))}
+          {files.map((file) => {
+            const statusRaw = (file.status || 'unknown').toLowerCase();
+            const statusClass = statusRaw.replace(/\s+/g, '-');
+            const statusLabel = statusRaw
+              .split(/[\s_-]+/)
+              .map((part) => part ? part[0].toUpperCase() + part.slice(1) : '')
+              .join(' ')
+              || 'Unknown';
+            return (
+              <li key={file.id} className="file-item">
+                <div className="file-info">
+                  <span className="file-name">{file.fileName}</span>
+                  <span className="upload-date">{new Date(file.uploadDate).toLocaleString()}</span>
+                  <div className="file-meta">
+                    <span className={`status-badge status-${statusClass}`}>
+                      {statusLabel}
+                    </span>
+                    <span className="chunk-count">
+                      {file.chunkCount} chunk{file.chunkCount === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                  {file.error && (
+                    <div className="file-error">
+                      Last error: {file.error}
+                    </div>
+                  )}
+                </div>
+                <button
+                  className="delete-button"
+                  onClick={() => confirmDelete(file)}
+                  disabled={deletingId === file.id}
+                  title="Delete file"
+                  aria-label={`Delete ${file.fileName}`}
+                >
+                  {deletingId === file.id ? 'Working...' : 'Delete'}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
+      <Modal
+        isOpen={Boolean(pendingDeletion)}
+        onClose={closeModal}
+        onConfirm={handleDelete}
+        title="Delete File"
+        confirmLabel="Delete"
+      >
+        <p>
+          Delete <strong>{pendingDeletion?.fileName}</strong> and its embeddings?
+        </p>
+      </Modal>
     </div>
   );
 };
