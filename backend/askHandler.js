@@ -1,7 +1,15 @@
 const db = require('./db');
 const config = require('./config/env');
 const { getPineconeIndex } = require('./services/pineconeClient');
-const { createEmbedding, createChatCompletion } = require('./services/openai');
+const { createEmbedding } = require('./services/openai');
+const { getAskChain } = require('./langchain/askChain');
+const {
+  cloneDefaultMemory,
+  formatPreferencePrompt,
+  getVerbositySettings,
+  normalizeMemory,
+  updateMemoryFromUserMessage,
+} = require('./utils/conversationMemory');
 
 const getChunkByVectorIdStmt = db.prepare(`
   SELECT
@@ -11,11 +19,11 @@ const getChunkByVectorIdStmt = db.prepare(`
     f.file_name AS fileName
   FROM chunks c
   JOIN files f ON f.id = c.file_id
-  WHERE c.vector_id = ?
+  WHERE c.vector_id = ? AND c.conversation_id = ?
 `);
 
-const getSessionStmt = db.prepare(`
-  SELECT id, title FROM sessions WHERE id = ?
+const getConversationStmt = db.prepare(`
+  SELECT id, title FROM conversations WHERE id = ?
 `);
 
 const selectRecentChunksStmt = db.prepare(`
@@ -26,86 +34,112 @@ const selectRecentChunksStmt = db.prepare(`
     f.file_name AS fileName
   FROM chunks c
   JOIN files f ON f.id = c.file_id
+  WHERE c.conversation_id = ?
   ORDER BY datetime(f.upload_date) DESC, c.position ASC
   LIMIT 5
 `);
 
-const insertSessionStmt = db.prepare(`
-  INSERT INTO sessions (id, title, created_at) VALUES (?, ?, ?)
+const insertConversationStmt = db.prepare(`
+  INSERT INTO conversations (id, title, created_at) VALUES (?, ?, ?)
 `);
 
-const insertMessageStmt = db.prepare(`
-  INSERT INTO messages (id, session_id, role, content, created_at)
-  VALUES (?, ?, ?, ?, ?)
+const updateConversationTitleStmt = db.prepare(`
+  UPDATE conversations SET title = ? WHERE id = ? AND (title IS NULL OR title = '')
 `);
 
-const updateSessionTitleStmt = db.prepare(`
-  UPDATE sessions SET title = ? WHERE id = ? AND (title IS NULL OR title = '')
+const selectConversationMemoryStmt = db.prepare(`
+  SELECT memory, updated_at AS updatedAt
+  FROM conversation_memory
+  WHERE conversation_id = ?
 `);
 
-const getMessagesForSessionStmt = db.prepare(`
-  SELECT role, content
-  FROM messages
-  WHERE session_id = ?
-  ORDER BY datetime(created_at) ASC
+const upsertConversationMemoryStmt = db.prepare(`
+  INSERT INTO conversation_memory (conversation_id, memory, updated_at)
+  VALUES (?, ?, ?)
+  ON CONFLICT(conversation_id) DO UPDATE SET
+    memory = excluded.memory,
+    updated_at = excluded.updated_at
 `);
 
-async function ensureSession(sessionId, previewText) {
+function formatSnippets(snippets) {
+  if (!snippets.length) return 'No relevant code snippets were found.';
+  return snippets
+    .map(
+      (snippet) =>
+        `${snippet.fileName} L${snippet.startLine}-${snippet.endLine}\n${snippet.content}`
+    )
+    .join('\n\n');
+}
+
+function buildSystemMessage({ preferenceText, verbosityInstruction }) {
+  return [
+    'You are an assistant that helps understand and explain code. Be clear, and call out gaps or uncertainty.',
+    preferenceText,
+    verbosityInstruction,
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+function extractChunkText(chunk) {
+  if (typeof chunk === 'string') return chunk;
+  const content = chunk?.content;
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => {
+        if (typeof part === 'string') return part;
+        if (part && typeof part.text === 'string') return part.text;
+        return '';
+      })
+      .join('');
+  }
+  return '';
+}
+
+async function ensureConversation(conversationId, previewText) {
   const { v4: uuidv4 } = await import('uuid');
-  const id = sessionId || uuidv4();
+  const id = conversationId || uuidv4();
 
-  const existing = getSessionStmt.get(id);
+  const existing = getConversationStmt.get(id);
   if (!existing) {
-    insertSessionStmt.run(id, null, new Date().toISOString());
+    insertConversationStmt.run(id, null, new Date().toISOString());
+    const defaultMemory = cloneDefaultMemory();
+    upsertConversationMemoryStmt.run(id, JSON.stringify(defaultMemory), new Date().toISOString());
   }
 
   if (previewText) {
     const title = previewText.slice(0, 60);
-    updateSessionTitleStmt.run(title, id);
+    updateConversationTitleStmt.run(title, id);
   }
 
   return id;
 }
 
-function buildMessages(sessionId, snippets, question) {
-  const history = sessionId ? getMessagesForSessionStmt.all(sessionId) : [];
-  const trimmedHistory =
-    config.maxHistoryMessages > 0
-      ? history.slice(-config.maxHistoryMessages)
-      : history;
-  const formattedSnippets = snippets.length
-    ? snippets
-        .map(
-          (snippet) =>
-            `[#${snippet.citation}] ${snippet.fileName} L${snippet.startLine}-${snippet.endLine}\n${snippet.content}`
-        )
-        .join('\n\n')
-    : 'No relevant code snippets were found.';
+async function prepareAskContext({ question, conversationId }) {
+  const effectiveConversationId = await ensureConversation(conversationId, question);
 
-  const messages = [
-    {
-      role: 'system',
-      content:
-        'You are an assistant that helps understand and explain code. Be concise, cite sources like [#1], and call out gaps or uncertainty.',
-    },
-    ...trimmedHistory.map((message) => ({
-      role: message.role,
-      content: message.content,
-    })),
-    {
-      role: 'user',
-      content: `Relevant snippets:\n${formattedSnippets}\n\nUser question:\n${question}`,
-    },
-  ];
+  const storedConversationMemoryRow = selectConversationMemoryStmt.get(effectiveConversationId);
+  let storedConversationMemory = cloneDefaultMemory();
+  if (storedConversationMemoryRow?.memory) {
+    try {
+      storedConversationMemory = normalizeMemory(JSON.parse(storedConversationMemoryRow.memory));
+    } catch (error) {
+      storedConversationMemory = cloneDefaultMemory();
+    }
+  }
+  const { memory: updatedConversationMemory, updated: memoryUpdated } =
+    updateMemoryFromUserMessage(storedConversationMemory, question);
 
-  return messages;
-}
+  if (memoryUpdated || !storedConversationMemoryRow) {
+    upsertConversationMemoryStmt.run(
+      effectiveConversationId,
+      JSON.stringify(updatedConversationMemory),
+      new Date().toISOString()
+    );
+  }
 
-async function askQuestion({ question, sessionId }) {
-  const { v4: uuidv4 } = await import('uuid');
-  const effectiveSessionId = await ensureSession(sessionId, question);
-
-  const pinecone = getPineconeIndex();
+  const pinecone = getPineconeIndex().namespace(effectiveConversationId);
   const embedding = await createEmbedding({
     input: question,
     model: 'text-embedding-3-large',
@@ -135,7 +169,7 @@ async function askQuestion({ question, sessionId }) {
   const initialSnippets = matches
     .slice(0, 5)
     .map((match, index) => {
-      const chunk = getChunkByVectorIdStmt.get(match.id);
+      const chunk = getChunkByVectorIdStmt.get(match.id, effectiveConversationId);
       if (!chunk) {
         return null;
       }
@@ -153,7 +187,7 @@ async function askQuestion({ question, sessionId }) {
   let resolvedSnippets = initialSnippets;
 
   if (!resolvedSnippets.length) {
-    const recent = selectRecentChunksStmt.all() || [];
+    const recent = selectRecentChunksStmt.all(effectiveConversationId) || [];
     resolvedSnippets = recent.map((chunk, index) => ({
       citation: index + 1,
       fileName: chunk.fileName || 'Unknown file',
@@ -164,29 +198,48 @@ async function askQuestion({ question, sessionId }) {
     }));
   }
 
-  const messages = buildMessages(effectiveSessionId, resolvedSnippets, question);
-  const completion = await createChatCompletion({
-    model: 'gpt-4o-mini',
-    messages,
-    maxTokens: 800,
+  const preferenceText = formatPreferencePrompt(updatedConversationMemory);
+  const verbositySettings = getVerbositySettings(updatedConversationMemory);
+  const systemMessage = buildSystemMessage({
+    preferenceText,
+    verbosityInstruction: verbositySettings.instruction,
   });
-
-  const answer = completion.choices?.[0]?.message?.content?.trim() || 'I could not generate an answer.';
-
-  const userMessageId = uuidv4();
-  const assistantMessageId = uuidv4();
-  const timestamp = new Date().toISOString();
-
-  const transaction = db.transaction(() => {
-    insertMessageStmt.run(userMessageId, effectiveSessionId, 'user', question, timestamp);
-    insertMessageStmt.run(assistantMessageId, effectiveSessionId, 'assistant', answer, timestamp);
-  });
-  transaction();
 
   return {
-    sessionId: effectiveSessionId,
-    answer,
-    citations: resolvedSnippets.map(({ citation, fileName, startLine, endLine, score }) => ({
+    conversationId: effectiveConversationId,
+    conversationMemory: updatedConversationMemory,
+    snippets: resolvedSnippets,
+    snippetsText: formatSnippets(resolvedSnippets),
+    systemMessage,
+    verbositySettings,
+  };
+}
+
+async function askQuestion({ question, conversationId }) {
+  const context = await prepareAskContext({ question, conversationId });
+  const chain = getAskChain({
+    streaming: false,
+    maxTokens: context.verbositySettings.maxTokens,
+  });
+  const answer = await chain.invoke(
+    {
+      question,
+      snippetsText: context.snippetsText,
+      systemMessage: context.systemMessage,
+    },
+    { configurable: { sessionId: context.conversationId } }
+  );
+
+  const normalizedAnswer =
+    typeof answer === 'string' && answer.trim()
+      ? answer.trim()
+      : 'I could not generate an answer.';
+
+  return {
+    conversationId: context.conversationId,
+    answer: normalizedAnswer,
+    conversationMemory: context.conversationMemory,
+    citations: context.snippets.map(({ citation, fileName, startLine, endLine, score }) => ({
       citation,
       fileName,
       startLine,
@@ -196,4 +249,61 @@ async function askQuestion({ question, sessionId }) {
   };
 }
 
-module.exports = { askQuestion, ensureSession };
+async function askQuestionStream({ question, conversationId, onToken, onSession }) {
+  const context = await prepareAskContext({ question, conversationId });
+  if (typeof onSession === 'function') {
+    onSession({
+      conversationId: context.conversationId,
+      citations: context.snippets.map(({ citation, fileName, startLine, endLine, score }) => ({
+        citation,
+        fileName,
+        startLine,
+        endLine,
+        score,
+      })),
+      conversationMemory: context.conversationMemory,
+    });
+  }
+  const chain = getAskChain({
+    streaming: true,
+    maxTokens: context.verbositySettings.maxTokens,
+  });
+  const stream = await chain.stream(
+    {
+      question,
+      snippetsText: context.snippetsText,
+      systemMessage: context.systemMessage,
+    },
+    { configurable: { sessionId: context.conversationId } }
+  );
+
+  let answer = '';
+  for await (const chunk of stream) {
+    const token = extractChunkText(chunk);
+    if (!token) continue;
+    answer += token;
+    if (typeof onToken === 'function') {
+      onToken(token);
+    }
+  }
+
+  const normalizedAnswer =
+    typeof answer === 'string' && answer.trim()
+      ? answer.trim()
+      : 'I could not generate an answer.';
+
+  return {
+    conversationId: context.conversationId,
+    answer: normalizedAnswer,
+    conversationMemory: context.conversationMemory,
+    citations: context.snippets.map(({ citation, fileName, startLine, endLine, score }) => ({
+      citation,
+      fileName,
+      startLine,
+      endLine,
+      score,
+    })),
+  };
+}
+
+module.exports = { askQuestion, askQuestionStream, ensureConversation };

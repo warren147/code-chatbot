@@ -16,7 +16,7 @@ const config = {
   pineconeApiKey: process.env.PINECONE_API_KEY,
   pineconeIndex: process.env.PINECONE_INDEX,
   frontendOrigin: process.env.FRONTEND_ORIGIN || 'http://localhost:3000',
-  maxChunkTokens: process.env.MAX_CHUNK_TOKENS ? Number(process.env.MAX_CHUNK_TOKENS) : 800,
+  maxChunkTokens: process.env.MAX_CHUNK_TOKENS ? Number(process.env.MAX_CHUNK_TOKENS) : 1000,
   chunkOverlapTokens: process.env.CHUNK_OVERLAP_TOKENS
     ? Number(process.env.CHUNK_OVERLAP_TOKENS)
     : 200,
@@ -24,6 +24,19 @@ const config = {
   uploadsDir: process.env.UPLOADS_DIR || 'uploads',
   databaseFile: process.env.DATABASE_FILE || 'data/app.db',
   maxHistoryMessages: process.env.MAX_HISTORY_MESSAGES ? Number(process.env.MAX_HISTORY_MESSAGES) : 10,
+  memoryMaxPerSession: process.env.MEMORY_MAX_PER_SESSION
+    ? Number(process.env.MEMORY_MAX_PER_SESSION)
+    : 200,
+  memoryTopK: process.env.MEMORY_TOP_K ? Number(process.env.MEMORY_TOP_K) : 5,
+  memoryMinSimilarity: process.env.MEMORY_MIN_SIMILARITY
+    ? Number(process.env.MEMORY_MIN_SIMILARITY)
+    : 0.25,
+  memoryConflictSimilarity: process.env.MEMORY_CONFLICT_SIMILARITY
+    ? Number(process.env.MEMORY_CONFLICT_SIMILARITY)
+    : 0.78,
+  memoryMinConfidence: process.env.MEMORY_MIN_CONFIDENCE
+    ? Number(process.env.MEMORY_MIN_CONFIDENCE)
+    : 0.35,
 };
 
 module.exports = config;

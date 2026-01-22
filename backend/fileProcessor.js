@@ -8,18 +8,31 @@ const { enqueue } = require('./services/ingestionQueue');
 const { getPineconeIndex } = require('./services/pineconeClient');
 const { createEmbedding } = require('./services/openai');
 
+function detectLanguage(fileName) {
+  const ext = path.extname(fileName || '').toLowerCase();
+  if (ext === '.py') return 'python';
+  if (ext === '.js' || ext === '.jsx') return 'javascript';
+  if (ext === '.ts' || ext === '.tsx') return 'typescript';
+  if (ext === '.java') return 'java';
+  if (ext === '.go') return 'go';
+  if (ext === '.rs') return 'rust';
+  return null;
+}
+
 const insertFileStmt = db.prepare(`
-  INSERT INTO files (id, file_name, upload_date, sha256, status)
-  VALUES (@id, @fileName, @uploadDate, @sha256, @status)
+  INSERT INTO files (id, conversation_id, file_name, upload_date, sha256, status)
+  VALUES (@id, @conversationId, @fileName, @uploadDate, @sha256, @status)
 `);
 
 const insertChunkStmt = db.prepare(`
-  INSERT INTO chunks (id, file_id, position, content, start_line, end_line, vector_id)
-  VALUES (@id, @fileId, @position, @content, @startLine, @endLine, @vectorId)
+  INSERT INTO chunks (id, file_id, conversation_id, position, content, start_line, end_line, vector_id)
+  VALUES (@id, @fileId, @conversationId, @position, @content, @startLine, @endLine, @vectorId)
 `);
 
 const selectFileByHashStmt = db.prepare(`
-  SELECT id, file_name AS fileName, status FROM files WHERE sha256 = ?
+  SELECT id, file_name AS fileName, status
+  FROM files
+  WHERE sha256 = ? AND conversation_id = ?
 `);
 
 const updateFileStatusStmt = db.prepare(`
@@ -36,7 +49,7 @@ const getFileByIdStmt = db.prepare(`
   SELECT file_name AS fileName FROM files WHERE id = ?
 `);
 
-async function processFiles(files) {
+async function processFiles(files, conversationId) {
   const { v4: uuidv4 } = await import('uuid');
   const results = {
     processed: [],
@@ -44,11 +57,14 @@ async function processFiles(files) {
   };
 
   for (const file of files) {
+    if (!conversationId) {
+      throw new Error('Conversation ID is required for file ingestion.');
+    }
     const tempPath = path.join(file.path);
     const content = fs.readFileSync(tempPath, 'utf8');
     const digest = sha256(content);
 
-    const duplicate = selectFileByHashStmt.get(digest);
+    const duplicate = selectFileByHashStmt.get(digest, conversationId);
     if (duplicate) {
       fs.unlinkSync(tempPath);
       results.skipped.push({ fileName: file.originalname, reason: 'duplicate', existingFileId: duplicate.id });
@@ -57,11 +73,13 @@ async function processFiles(files) {
 
     const fileId = uuidv4();
     const uploadDate = new Date().toISOString();
+    const language = detectLanguage(file.originalname);
 
-    const chunks = chunkLines(content, config.maxChunkTokens * 4, config.chunkOverlapTokens * 4).map(
+    const chunks = chunkLines(content, config.maxChunkTokens * 4, config.chunkOverlapTokens * 4, { language }).map(
       (chunk, index) => ({
         id: uuidv4(),
         fileId,
+        conversationId,
         position: index,
         content: chunk.content,
         startLine: chunk.startLine,
@@ -75,6 +93,7 @@ async function processFiles(files) {
     const transaction = db.transaction(() => {
       insertFileStmt.run({
         id: fileId,
+        conversationId,
         fileName: file.originalname,
         uploadDate,
         sha256: digest,
@@ -98,7 +117,7 @@ async function processFiles(files) {
     enqueue(async () => {
       try {
         updateFileStatusStmt.run('processing', null, fileId);
-        const pinecone = getPineconeIndex();
+        const pinecone = getPineconeIndex().namespace(conversationId);
         const storedChunks = getChunksForFileStmt.all(fileId);
         const fileRecord = getFileByIdStmt.get(fileId);
 

@@ -29,7 +29,7 @@ const renderers = {
   },
 };
 
-const TYPING_DELAY = 15;
+const TYPING_DELAY = 5;
 
 const Chat = ({
   sessionId,
@@ -48,10 +48,16 @@ const Chat = ({
   const typingIntervalsRef = useRef(new Map());
   const currentSessionRef = useRef(sessionId);
   const previousLengthRef = useRef(0);
+  const isSendingRef = useRef(false);
+  const messagesRef = useRef([]);
 
   useEffect(() => {
     currentSessionRef.current = sessionId;
   }, [sessionId]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -85,10 +91,13 @@ const Chat = ({
         setMessages([]);
         return;
       }
+      if (isSendingRef.current && id === currentSessionRef.current) {
+        return;
+      }
       clearAllTypingIntervals();
       setIsHistoryLoading(true);
       try {
-        const { data } = await client.get(`/sessions/${id}/messages`);
+        const { data } = await client.get(`/conversations/${id}/messages`);
         const history = (data.messages || []).map((message) => ({
           id: message.id,
           sender: message.role === 'user' ? 'user' : 'bot',
@@ -98,7 +107,7 @@ const Chat = ({
         }));
         setMessages(history);
       } catch (error) {
-        console.error('Failed to load session history:', error);
+        console.error('Failed to load conversation history:', error);
         toast.error('Could not load this conversation.');
       } finally {
         setIsHistoryLoading(false);
@@ -171,6 +180,7 @@ const Chat = ({
     const userMessage = { id: uuidv4(), sender: 'user', text: question };
     const botMessageId = uuidv4();
 
+    isSendingRef.current = true;
     setMessages((prev) => [
       ...prev,
       userMessage,
@@ -186,25 +196,24 @@ const Chat = ({
           activeSessionId = await ensureSession();
           currentSessionRef.current = activeSessionId;
         } else {
-          const { data } = await client.post('/sessions');
-          activeSessionId = data.sessionId;
+          const { data } = await client.post('/conversations');
+          activeSessionId = data.conversationId;
           currentSessionRef.current = activeSessionId;
         }
       }
 
       if (!activeSessionId) {
-        throw new Error('Unable to start a new chat session.');
+        throw new Error('Unable to start a new conversation.');
       }
 
-      const { data } = await client.post('/ask', {
-        question,
-        sessionId: activeSessionId,
+      const { data } = await client.post(`/conversations/${activeSessionId}/messages`, {
+        content: question,
       });
 
       const answerText = data?.answer || '';
 
-      if (data?.sessionId && data.sessionId !== currentSessionRef.current) {
-        currentSessionRef.current = data.sessionId;
+      if (data?.conversationId && data.conversationId !== currentSessionRef.current) {
+        currentSessionRef.current = data.conversationId;
       }
       onSessionsRefresh?.();
 
@@ -220,6 +229,7 @@ const Chat = ({
 
       typeText(answerText, botMessageId, () => {
         setIsLoading(false);
+        isSendingRef.current = false;
       });
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -236,6 +246,7 @@ const Chat = ({
         )
       );
       setIsLoading(false);
+      isSendingRef.current = false;
       toast.error(error?.message || 'Could not process your request.');
     }
   }, [clearTypingInterval, ensureSession, input, isLoading, onSessionsRefresh, typeText]);
@@ -259,11 +270,11 @@ const Chat = ({
     const activeId = currentSessionRef.current;
     if (activeId) {
       try {
-        await client.delete(`/sessions/${activeId}`);
+        await client.delete(`/conversations/${activeId}`);
         currentSessionRef.current = null;
         onSessionCleared?.(activeId);
       } catch (error) {
-        console.error('Failed to delete session:', error);
+        console.error('Failed to delete conversation:', error);
         toast.error('Could not clear this conversation.');
       }
     }
@@ -319,16 +330,6 @@ const Chat = ({
                     </ReactMarkdown>
                   )}
                 </div>
-                {msg.citations && msg.citations.length > 0 && (
-                  <div className="citation-list">
-                    {msg.citations.map((citation) => (
-                      <span key={citation.citation} className="citation-item">
-                        {citation.fileName} | L{citation.startLine}-{citation.endLine} | score{' '}
-                        {citation.score?.toFixed ? citation.score.toFixed(2) : citation.score}
-                      </span>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
           );

@@ -27,8 +27,8 @@ function App() {
   const fetchSessions = useCallback(
     async ({ preferredId } = {}) => {
       try {
-        const { data } = await client.get('/sessions');
-        const list = data.sessions || [];
+        const { data } = await client.get('/conversations');
+        const list = data.conversations || [];
         setSessions(list);
 
         const current = preferredId || activeSessionRef.current;
@@ -39,7 +39,7 @@ function App() {
         setActiveSessionId(resolved);
         activeSessionRef.current = resolved;
       } catch (error) {
-        console.error('Failed to load sessions:', error);
+        console.error('Failed to load conversations:', error);
       }
     },
     []
@@ -54,27 +54,27 @@ function App() {
       return activeSessionRef.current;
     }
     try {
-      const { data } = await client.post('/sessions');
-      const newId = data.sessionId;
+      const { data } = await client.post('/conversations');
+      const newId = data.conversationId;
       activeSessionRef.current = newId;
       setActiveSessionId(newId);
       await fetchSessions({ preferredId: newId });
       return newId;
     } catch (error) {
-      console.error('Failed to create session:', error);
+      console.error('Failed to create conversation:', error);
       throw new Error('Could not start a new conversation.');
     }
   }, [fetchSessions]);
 
   const handleCreateSession = useCallback(async () => {
     try {
-      const { data } = await client.post('/sessions');
-      const newId = data.sessionId;
+      const { data } = await client.post('/conversations');
+      const newId = data.conversationId;
       activeSessionRef.current = newId;
       setActiveSessionId(newId);
       await fetchSessions({ preferredId: newId });
     } catch (error) {
-      console.error('Failed to create session:', error);
+      console.error('Failed to create conversation:', error);
     }
   }, [fetchSessions]);
 
@@ -121,7 +121,7 @@ function App() {
     }
     setIsDeletingSession(true);
     try {
-      await client.delete(`/sessions/${sessionPendingDelete.id}`);
+      await client.delete(`/conversations/${sessionPendingDelete.id}`);
       if (activeSessionRef.current === sessionPendingDelete.id) {
         activeSessionRef.current = null;
         setActiveSessionId(null);
@@ -129,7 +129,7 @@ function App() {
       await fetchSessions();
       toast.success('Conversation deleted.');
     } catch (error) {
-      console.error('Failed to delete session:', error);
+      console.error('Failed to delete conversation:', error);
       toast.error('Could not delete this conversation.');
     } finally {
       setIsDeletingSession(false);
@@ -160,9 +160,11 @@ function App() {
           <div>
             <h1>Workspace</h1>
           </div>
-          <button className="topbar__button" type="button" onClick={() => setIsDrawerOpen(true)}>
-            Manage knowledge
-          </button>
+          <div className="topbar__actions">
+            <button className="topbar__button" type="button" onClick={() => setIsDrawerOpen(true)}>
+              Manage knowledge
+            </button>
+          </div>
         </header>
 
         <section className="app-chat">
@@ -176,9 +178,9 @@ function App() {
         </section>
       </main>
 
-      <KnowledgeDrawer open={isDrawerOpen} onClose={() => setIsDrawerOpen(false)}>
-        <FileUpload onUploadSuccess={handleUploadSuccess} />
-        <FileList refresh={refreshFiles} />
+      <KnowledgeDrawer open={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} title="Knowledge base">
+        <FileUpload conversationId={activeSessionId} onUploadSuccess={handleUploadSuccess} />
+        <FileList conversationId={activeSessionId} refresh={refreshFiles} />
       </KnowledgeDrawer>
 
       <Modal

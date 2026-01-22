@@ -5,7 +5,7 @@ import client from '../api/client';
 import Modal from './Modal';
 import './FileList.css';
 
-const FileList = ({ refresh }) => {
+const FileList = ({ conversationId, refresh }) => {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -14,11 +14,18 @@ const FileList = ({ refresh }) => {
   const pollingRef = useRef(null);
 
   const fetchFiles = useCallback(async ({ silent = false } = {}) => {
+    if (!conversationId) {
+      if (!silent) {
+        setLoading(false);
+      }
+      setFiles([]);
+      return;
+    }
     if (!silent) {
       setLoading(true);
     }
     try {
-      const response = await client.get('/files');
+      const response = await client.get(`/conversations/${conversationId}/files`);
       setFiles(response.data.files || []);
       setError(null);
     } catch (err) {
@@ -28,7 +35,7 @@ const FileList = ({ refresh }) => {
     if (!silent) {
       setLoading(false);
     }
-  }, []);
+  }, [conversationId]);
 
   useEffect(() => {
     fetchFiles();
@@ -66,7 +73,7 @@ const FileList = ({ refresh }) => {
 
     try {
       setDeletingId(pendingDeletion.id);
-      await client.delete(`/files/${pendingDeletion.id}`);
+      await client.delete(`/conversations/${conversationId}/files/${pendingDeletion.id}`);
       toast.success('File deleted successfully.');
       setPendingDeletion(null);
       setDeletingId(null);
@@ -91,6 +98,16 @@ const FileList = ({ refresh }) => {
       <button onClick={fetchFiles}>Retry</button>
     </div>
   );
+
+  if (!conversationId) {
+    return (
+      <div className="file-list-container">
+        <div className="file-empty-state">
+          Select a conversation to view its knowledge base.
+        </div>
+      </div>
+    );
+  }
 
   const fileCount = files.length;
 

@@ -114,12 +114,14 @@
   flex-direction: column;
   gap: 4px;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .sidebar__entry {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 
 .sidebar__item {
@@ -136,6 +138,7 @@
   transition: background var(--transition-base), border var(--transition-base), color var(--transition-base);
   text-align: left;
   flex: 1;
+  min-width: 0;
 }
 
 .sidebar__item:hover {
@@ -154,6 +157,7 @@
   font-weight: 500;
   color: inherit;
   max-width: 100%;
+  width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

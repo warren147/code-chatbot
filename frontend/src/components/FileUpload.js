@@ -4,14 +4,18 @@ import { toast } from 'react-toastify';
 import client from '../api/client';
 import './FileUpload.css';
 
-const FileUpload = ({ onUploadSuccess }) => {
+const FileUpload = ({ conversationId, onUploadSuccess }) => {
   const onDrop = useCallback((acceptedFiles) => {
+    if (!conversationId) {
+      toast.error('Select a conversation before uploading files.');
+      return;
+    }
     const formData = new FormData();
     acceptedFiles.forEach(file => {
       formData.append('files', file);
     });
 
-    client.post('/upload', formData, {
+    client.post(`/conversations/${conversationId}/files`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
@@ -32,7 +36,7 @@ const FileUpload = ({ onUploadSuccess }) => {
       const errorMessage = error.response?.data?.error || 'Failed to upload files.';
       toast.error(errorMessage);
     });
-  }, [onUploadSuccess]);
+  }, [conversationId, onUploadSuccess]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, multiple: true });
 
